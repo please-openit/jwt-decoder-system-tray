@@ -82,7 +82,7 @@ public class JwtSystemTrayApp {
 
                     String fullContent = "Header:\n" + prettyHeader + "\n\nPayload:\n"+ dates + "\n" + prettyPayload;
 
-                    showSearchableDialog(fullContent);
+                    showSearchableDialog(prettyHeader, prettyPayload);
 
                 } catch (Exception ex) {
                     JOptionPane.showMessageDialog(null,
@@ -108,90 +108,81 @@ public class JwtSystemTrayApp {
         }
     }
 
-    private static void showSearchableDialog(String content) {
+    private static void showSearchableDialog(String header, String content) {
         JDialog dialog = new JDialog((Frame) null, "Decoded JWT", true);
-        dialog.setSize(800, 600);
+        dialog.setSize(850, 650); // Légèrement agrandi pour le confort visuel
         dialog.setLocationRelativeTo(null);
 
-        JTextField searchField = new JTextField();
-        JButton nextButton = new JButton("Find Next");
-        JPanel topPanel = new JPanel(new BorderLayout());
-        topPanel.add(searchField, BorderLayout.CENTER);
-        topPanel.add(nextButton, BorderLayout.EAST);
+        // --- Définition d'une police élégante ---
+        // Java va tester les polices dans l'ordre. Si "JetBrains Mono" ou "Consolas" ne sont pas installés,
+        // il prendra une police à espacement fixe de haute qualité par défaut.
+        Font elegantFont = new Font("JetBrains Mono", Font.PLAIN, 15);
+        if (elegantFont.getName().equals("Dialog")) {
+            elegantFont = new Font("Consolas", Font.PLAIN, 15);
+        }
+        if (elegantFont.getName().equals("Dialog")) {
+            elegantFont = new Font("Monospaced", Font.PLAIN, 15);
+        }
 
-        JTextPane textPane = new JTextPane();
-        textPane.setEditable(false);
-        textPane.setFont(new Font("Monospaced", Font.PLAIN, 12));
-        JScrollPane scrollPane = new JScrollPane(textPane);
+        // --- Configuration du Header ---
+        JTextPane headerTextPane = new JTextPane();
+        headerTextPane.setEditable(false);
+        headerTextPane.setFont(elegantFont);
+        headerTextPane.setOpaque(false);
+        headerTextPane.setBorder(BorderFactory.createEmptyBorder(5, 8, 5, 8)); // Marges internes pour respirer
 
-        applyJsonSyntaxHighlighting(textPane, content);
+        // Espacement des lignes (Interlignage à 1.2 pour l'élégance)
+        MutableAttributeSet set = new SimpleAttributeSet();
+        StyleConstants.setLineSpacing(set, 0.2f);
+        headerTextPane.setParagraphAttributes(set, false);
 
-        Highlighter highlighter = textPane.getHighlighter();
-        Highlighter.HighlightPainter painter = new DefaultHighlighter.DefaultHighlightPainter(Color.YELLOW);
+        JScrollPane headerScrollPane = new JScrollPane(headerTextPane);
+        headerScrollPane.setBorder(null);
+        headerScrollPane.setOpaque(false);
+        headerScrollPane.getViewport().setOpaque(false);
 
-        final int[] currentIndex = { -1 };
-        final java.util.List<Integer> occurrences = new java.util.ArrayList<>();
+        JPanel headerPanel = new JPanel(new BorderLayout());
+        headerPanel.add(headerScrollPane, BorderLayout.CENTER);
+        headerPanel.setBorder(BorderFactory.createTitledBorder(
+                BorderFactory.createEtchedBorder(), "Header",
+                javax.swing.border.TitledBorder.LEFT, javax.swing.border.TitledBorder.TOP,
+                new Font("SansSerif", Font.BOLD, 12))); // Titre du panel plus propre
 
-        Runnable searchAndHighlight = () -> {
-            highlighter.removeAllHighlights();
-            occurrences.clear();
-            currentIndex[0] = -1;
+        // --- Configuration du Payload ---
+        JTextPane payloadTextPane = new JTextPane();
+        payloadTextPane.setEditable(false);
+        payloadTextPane.setFont(elegantFont);
+        payloadTextPane.setOpaque(false);
+        payloadTextPane.setBorder(BorderFactory.createEmptyBorder(5, 8, 5, 8));
+        payloadTextPane.setParagraphAttributes(set, false); // Même interlignage
 
-            String text = textPane.getText().toLowerCase();
-            String query = searchField.getText().toLowerCase();
+        JScrollPane payloadScrollPane = new JScrollPane(payloadTextPane);
+        payloadScrollPane.setBorder(null);
+        payloadScrollPane.setOpaque(false);
+        payloadScrollPane.getViewport().setOpaque(false);
 
-            if (query.isEmpty()) return;
+        JPanel payloadPanel = new JPanel(new BorderLayout());
+        payloadPanel.add(payloadScrollPane, BorderLayout.CENTER);
+        payloadPanel.setBorder(BorderFactory.createTitledBorder(
+                BorderFactory.createEtchedBorder(), "Payload",
+                javax.swing.border.TitledBorder.LEFT, javax.swing.border.TitledBorder.TOP,
+                new Font("SansSerif", Font.BOLD, 12)));
 
-            int index = 0;
-            while ((index = text.indexOf(query, index)) >= 0) {
-                occurrences.add(index);
-                try {
-                    highlighter.addHighlight(index, index + query.length(), painter);
-                } catch (BadLocationException ignored) {}
-                index += query.length();
-            }
+        // Application de la coloration syntaxique
+        applyJsonSyntaxHighlighting(headerTextPane, header);
+        applyJsonSyntaxHighlighting(payloadTextPane, content);
 
-            if (!occurrences.isEmpty()) {
-                currentIndex[0] = 0;
-                int start = occurrences.get(0);
-                textPane.setCaretPosition(start);
-                textPane.select(start, start + query.length());
-                searchField.requestFocusInWindow();
-            }
-        };
-
-        nextButton.addActionListener(e -> {
-            if (occurrences.isEmpty()) {
-                JOptionPane.showMessageDialog(dialog, "No occurrences found.");
-                return;
-            }
-            currentIndex[0]++;
-            if (currentIndex[0] >= occurrences.size()) {
-                currentIndex[0] = 0;
-            }
-            int start = occurrences.get(currentIndex[0]);
-            int end = start + searchField.getText().length();
-            textPane.setCaretPosition(start);
-            textPane.select(start, end);
-            textPane.requestFocus();
-        });
-
-        searchField.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
-            public void changedUpdate(javax.swing.event.DocumentEvent e) {
-                searchAndHighlight.run();
-            }
-            public void removeUpdate(javax.swing.event.DocumentEvent e) {
-                searchAndHighlight.run();
-            }
-            public void insertUpdate(javax.swing.event.DocumentEvent e) {
-                searchAndHighlight.run();
-            }
-        });
+        // JSplitPane pour organiser le tout
+        JSplitPane splitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT, headerPanel, payloadPanel);
+        splitPane.setDividerLocation(200); // Un peu plus grand pour la nouvelle taille de police
+        splitPane.setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
 
         dialog.setLayout(new BorderLayout());
-        dialog.add(topPanel, BorderLayout.NORTH);
-        dialog.add(scrollPane, BorderLayout.CENTER);
+        dialog.add(splitPane, BorderLayout.CENTER);
 
+        dialog.setAlwaysOnTop(true);
+        dialog.toFront();
+        dialog.requestFocus();
         dialog.setVisible(true);
     }
 
